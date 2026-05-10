@@ -1,53 +1,16 @@
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import {
-  LayoutDashboard,
-  Sun,
-  CalendarDays,
-  CalendarRange,
-  PieChart,
-  Flame,
-  ScrollText,
-  Settings,
-  type LucideIcon,
-} from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { requireUser } from "@/lib/auth";
+import { NAV_SECTIONS } from "@/lib/constants";
 import { SignOutButton } from "./sign-out-button";
 
-type NavItem = { href: string; label: string; Icon: LucideIcon };
-type NavSection = { label: string; items: NavItem[] };
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    label: "Workspace",
-    items: [
-      { href: "/", label: "Dashboard", Icon: LayoutDashboard },
-      { href: "/today", label: "Today", Icon: Sun },
-      { href: "/week", label: "This Week", Icon: CalendarDays },
-      { href: "/month", label: "This Month", Icon: CalendarRange },
-      { href: "/quarter", label: "Quarter View", Icon: PieChart },
-    ],
-  },
-  {
-    label: "Insights",
-    items: [
-      { href: "/streaks", label: "Streaks", Icon: Flame },
-      { href: "/logs", label: "Logs", Icon: ScrollText },
-    ],
-  },
-  {
-    label: "Account",
-    items: [{ href: "/settings", label: "Settings", Icon: Settings }],
-  },
-];
-
+/**
+ * Authenticated app shell — sidebar + topbar.
+ *
+ * The sidebar nav is sourced from `lib/constants/nav.ts` so adding a route
+ * is a one-file change. The topbar shows breadcrumbs + ⌘K placeholder + user.
+ */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  const user = await requireUser();
 
   const displayName =
     (user.user_metadata?.full_name as string) ||
