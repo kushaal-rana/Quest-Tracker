@@ -54,15 +54,6 @@ export const archiveQuestSchema = z.object({
 
 export type ArchiveQuestInput = z.infer<typeof archiveQuestSchema>;
 
-// ─── Form state shape (shared between actions + form components) ─────────────
-//
-// Lives here (not in actions.ts) because Next.js "use server" files can only
-// export async functions — non-function exports break the build.
-
-export type FormState = {
-  ok: boolean;
-  message?: string;
-  fieldErrors?: Record<string, string[]>;
-};
-
-export const INITIAL_FORM_STATE: FormState = { ok: false };
+// FormState + INITIAL_FORM_STATE moved to @/lib/forms (shared across features).
+// Re-exported here for backwards-compatible imports from inside the quests feature.
+export { type FormState, INITIAL_FORM_STATE } from "@/lib/forms";

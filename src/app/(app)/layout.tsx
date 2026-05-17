@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { NAV_SECTIONS } from "@/lib/constants";
+import { getOrCreateCurrentQuarter } from "@/features/quarters/queries";
+import { listActiveQuestsForPicker } from "@/features/quests/queries";
+import { CommandPalette } from "@/features/command-palette/components/command-palette";
 import { SignOutButton } from "./sign-out-button";
 
 /**
@@ -11,6 +14,11 @@ import { SignOutButton } from "./sign-out-button";
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
+
+  // Fetch the quest list for the ⌘K palette in parallel with user metadata.
+  // Cheap query (just id/name/color/measure), happens once per RSC render.
+  const quarter = await getOrCreateCurrentQuarter(user.id);
+  const paletteQuests = await listActiveQuestsForPicker(user.id, quarter.id);
 
   const displayName =
     (user.user_metadata?.full_name as string) ||
@@ -79,6 +87,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
+
+      {/* ⌘K command palette — global, listens for ⌘K/Ctrl+K from anywhere */}
+      <CommandPalette quests={paletteQuests} />
     </div>
   );
 }

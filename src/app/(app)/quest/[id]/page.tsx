@@ -5,13 +5,23 @@ import { requireUser } from "@/lib/auth";
 import { ROUTES, formatMeasure } from "@/lib/constants";
 import { getQuestById } from "@/features/quests/queries";
 import { CategoryTag } from "@/features/quests/components/category-tag";
+import { QuestSparkline } from "@/features/quests/components/quest-sparkline";
 import { ArchiveQuestButton } from "@/features/quests/components/archive-quest-button";
+import { listLessonsForQuest, listOpenLessonsForQuest } from "@/features/lessons/queries";
+import { LessonsList } from "@/features/lessons/components/lessons-list";
+import { getQuestActivity, listSessionsForQuest } from "@/features/sessions/queries";
+import { SessionLogForm } from "@/features/sessions/components/session-log-form";
+import { SessionList } from "@/features/sessions/components/session-list";
 
 /**
- * Quest detail page — Phase 2 version.
+ * Quest detail page (Phase 3 — full version).
  *
- * Currently: read-only summary + Edit / Archive controls.
- * Phase 3 will add: lessons checklist, session log, sparkline.
+ * Structure:
+ *   1. Title row + Edit/Archive actions
+ *   2. Sparkline (last 14 days)
+ *   3. Session log form (always visible — primary CTA)
+ *   4. Lessons checklist (only when measure='lessons')
+ *   5. Recent sessions list
  */
 type Params = Promise<{ id: string }>;
 
@@ -21,8 +31,18 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
   const quest = await getQuestById(user.id, id);
   if (!quest) notFound();
 
+  const isLessonQuest = quest.measure === "lessons";
+
+  // Fetch all the data the page needs in parallel
+  const [activity, sessions, lessons, openLessons] = await Promise.all([
+    getQuestActivity(user.id, quest.id, 14),
+    listSessionsForQuest(user.id, quest.id, 25),
+    isLessonQuest ? listLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
+    isLessonQuest ? listOpenLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
+  ]);
+
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-6xl space-y-6">
       <Link
         href={ROUTES.dashboard}
         className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground transition-colors hover:text-foreground"
@@ -31,8 +51,8 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
         Back to dashboard
       </Link>
 
-      {/* Title row */}
-      <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+      {/* Title + actions */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-3">
             <span
@@ -52,12 +72,14 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
               </span>
             )}
             <span className="text-[14px] text-muted-foreground">
-              Target: <span className="font-medium text-foreground">{formatMeasure(quest.targetCount, quest.measure)}</span>
+              Target:{" "}
+              <span className="font-medium text-foreground">
+                {formatMeasure(quest.targetCount, quest.measure)}
+              </span>
             </span>
           </div>
         </div>
 
-        {/* Actions */}
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href={`${ROUTES.questDetail(quest.id)}/edit`}
@@ -70,13 +92,23 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
         </div>
       </div>
 
-      {/* Phase 3 placeholder */}
-      <div className="mt-10 rounded-xl border border-dashed border-border bg-muted/20 p-12 text-center">
-        <h2 className="text-[20px] font-medium">Lessons + sessions land in Phase 3</h2>
-        <p className="mt-2 text-[15px] text-muted-foreground">
-          Lessons checklist · session log · sparkline · ⌘K palette · confetti on completion.
-        </p>
+      {/* Sparkline */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <QuestSparkline data={activity} color={quest.color} />
       </div>
+
+      {/* Session log form */}
+      <SessionLogForm
+        questId={quest.id}
+        measure={quest.measure}
+        openLessons={openLessons.map((l) => ({ id: l.id, title: l.title }))}
+      />
+
+      {/* Lessons (only for measure=lessons) */}
+      {isLessonQuest && <LessonsList questId={quest.id} lessons={lessons} />}
+
+      {/* Recent sessions */}
+      <SessionList sessions={sessions} />
     </div>
   );
 }

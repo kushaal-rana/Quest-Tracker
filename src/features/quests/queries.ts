@@ -82,6 +82,41 @@ export async function getQuestById(userId: string, questId: string): Promise<Que
 }
 
 /**
+ * Lightweight quest list — for the ⌘K palette + other selectors.
+ * Returns just enough to render a row: id, name, color, measure.
+ */
+export type QuestPickerRow = {
+  id: string;
+  name: string;
+  color: string;
+  measure: "lessons" | "hours";
+};
+
+export async function listActiveQuestsForPicker(
+  userId: string,
+  quarterId: string,
+): Promise<QuestPickerRow[]> {
+  const rows = await db
+    .select({
+      id: quests.id,
+      name: quests.name,
+      color: quests.color,
+      measure: quests.measure,
+    })
+    .from(quests)
+    .where(
+      and(
+        eq(quests.userId, userId),
+        eq(quests.quarterId, quarterId),
+        eq(quests.archived, false),
+      ),
+    )
+    .orderBy(asc(quests.position), asc(quests.createdAt));
+
+  return rows;
+}
+
+/**
  * Next position number for a new quest in a quarter (append to bottom).
  */
 export async function nextPositionForQuarter(userId: string, quarterId: string): Promise<number> {

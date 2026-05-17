@@ -93,3 +93,30 @@ export function formatDateOnly(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/**
+ * Human-readable relative time.
+ *
+ *   formatRelativeTime(Date.now() - 30_000)        → "just now"
+ *   formatRelativeTime(Date.now() - 5 * 60_000)    → "5m ago"
+ *   formatRelativeTime(Date.now() - 3 * 3_600_000) → "3h ago"
+ *   formatRelativeTime(Date.now() - 86_400_000)    → "yesterday"
+ *   formatRelativeTime(Date.now() - 3 * 86_400_000)→ "3 days ago"
+ *   formatRelativeTime(Date.now() - 30 * 86_400_000)→ "Apr 12" (local format)
+ */
+export function formatRelativeTime(date: Date | number, now: number = Date.now()): string {
+  const then = date instanceof Date ? date.getTime() : date;
+  const diffMs = now - then;
+  const min = Math.floor(diffMs / 60_000);
+  const hr = Math.floor(diffMs / 3_600_000);
+  const day = Math.floor(diffMs / 86_400_000);
+
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  if (hr < 24) return `${hr}h ago`;
+  if (day === 1) return "yesterday";
+  if (day < 7) return `${day} days ago`;
+
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}

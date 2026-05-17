@@ -30,7 +30,7 @@ export default async function DashboardPage() {
   const firstName = displayName.split(" ")[0];
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-6xl">
       <div className="mb-3 font-mono text-[14px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
         {quarter.label} · Day {progress.daysElapsed} of {progress.totalDays}
       </div>
