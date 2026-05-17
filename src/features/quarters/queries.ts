@@ -1,8 +1,8 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, desc, count, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { quarters, type Quarter } from "@/lib/db/schema";
+import { quarters, quests, type Quarter } from "@/lib/db/schema";
 import { quarterFor } from "@/lib/format/date";
 
 /**
@@ -60,4 +60,57 @@ export async function getQuarterById(userId: string, quarterId: string): Promise
     where: and(eq(quarters.id, quarterId), eq(quarters.userId, userId)),
   });
   return row ?? null;
+}
+
+export type PastQuarterSummary = Quarter & {
+  totalQuests: number;
+  completedPct: number; // 0..100 average across all quests
+};
+
+/**
+ * All quarters except the current one, with aggregate quest stats.
+ * Returns empty array if this is the user's first quarter.
+ */
+export async function getPastQuarterSummaries(
+  userId: string,
+  currentQuarterId: string,
+): Promise<PastQuarterSummary[]> {
+  const rows = await db
+    .select({
+      quarter: quarters,
+      totalQuests: count(quests.id),
+      avgProgress: sql<number>`
+        coalesce(
+          avg(
+            case
+              when ${quests.measure} = 'lessons' then (
+                select count(*)::float / nullif(${quests.targetCount}, 0)
+                from lessons l
+                where l.quest_id = ${quests.id} and l.completed_at is not null
+              )
+              else (
+                select coalesce(sum(s.hours)::float, 0) / nullif(${quests.targetCount}, 0)
+                from sessions s
+                where s.quest_id = ${quests.id}
+              )
+            end
+          ),
+          0
+        )
+      `,
+    })
+    .from(quarters)
+    .leftJoin(
+      quests,
+      and(eq(quests.quarterId, quarters.id), eq(quests.archived, false)),
+    )
+    .where(and(eq(quarters.userId, userId), ne(quarters.id, currentQuarterId)))
+    .groupBy(quarters.id)
+    .orderBy(desc(quarters.startDate));
+
+  return rows.map(({ quarter, totalQuests, avgProgress }) => ({
+    ...quarter,
+    totalQuests,
+    completedPct: Math.round(Math.min(avgProgress, 1) * 100),
+  }));
 }

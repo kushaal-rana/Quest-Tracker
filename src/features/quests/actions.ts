@@ -140,6 +140,28 @@ export async function updateQuestAction(
   redirect(ROUTES.questDetail(input.id));
 }
 
+// ─── Unarchive ───────────────────────────────────────────────────────────────
+
+export async function unarchiveQuestAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const user = await requireUser();
+
+  const parsed = archiveQuestSchema.safeParse({ id: formData.get("id") });
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid quest id." };
+  }
+
+  await db
+    .update(quests)
+    .set({ archived: false })
+    .where(and(eq(quests.id, parsed.data.id), eq(quests.userId, user.id)));
+
+  revalidatePath(ROUTES.dashboard);
+  return { ok: true, message: "Quest restored." };
+}
+
 // ─── Archive (soft delete) ───────────────────────────────────────────────────
 
 export async function archiveQuestAction(

@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { PieChart, BookOpen, Clock, CalendarDays, Flame, Sparkles, ArrowRight } from "lucide-react";
+import { PieChart, BookOpen, Clock, CalendarDays, Flame, Sparkles, ArrowRight, History } from "lucide-react";
 import { requireUser } from "@/lib/auth";
-import { getOrCreateCurrentQuarter } from "@/features/quarters/queries";
+import { getOrCreateCurrentQuarter, getPastQuarterSummaries } from "@/features/quarters/queries";
 import { calcQuarterProgress } from "@/features/quarters/lib";
 import { listQuestsForQuarter } from "@/features/quests/queries";
 import { getCumulativeProgress } from "@/features/insights/queries";
@@ -20,10 +20,11 @@ export default async function QuarterPage() {
   const quarter = await getOrCreateCurrentQuarter(user.id);
   const progress = calcQuarterProgress(quarter);
 
-  const [quests, cumulativeSeries, streak] = await Promise.all([
+  const [quests, cumulativeSeries, streak, pastQuarters] = await Promise.all([
     listQuestsForQuarter(user.id, quarter.id),
     getCumulativeProgress(user.id, quarter.id),
     calcCurrentStreak(user.id),
+    getPastQuarterSummaries(user.id, quarter.id),
   ]);
 
   const totalHours = quests.reduce((acc, q) => acc + q.hoursLogged, 0);
@@ -167,6 +168,58 @@ export default async function QuarterPage() {
             <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
           </Link>
         </div>
+      </div>
+
+      {/* Past quarters */}
+      <div className="mt-4 rounded-xl border border-border bg-card">
+        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
+          <History className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+          <h2 className="text-[13px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Past quarters
+          </h2>
+        </div>
+
+        {pastQuarters.length === 0 ? (
+          <p className="px-5 py-6 text-center text-[13px] text-muted-foreground">
+            Your first complete quarter will appear here.
+          </p>
+        ) : (
+          <div className="divide-y divide-border">
+            {pastQuarters.map((pq) => (
+              <div key={pq.id} className="flex items-center justify-between px-5 py-4">
+                <div className="flex items-start gap-4">
+                  <div>
+                    <div className="text-[14px] font-medium text-foreground">{pq.label}</div>
+                    <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                      {pq.startDate} → {pq.endDate}
+                    </div>
+                    {pq.reflection && (
+                      <p className="mt-1 line-clamp-1 max-w-sm text-[12px] text-muted-foreground">
+                        {pq.reflection}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="font-mono text-[18px] font-semibold text-foreground">
+                      {pq.completedPct}%
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      {pq.totalQuests} quest{pq.totalQuests !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                  <Link
+                    href={ROUTES.quarterReview(pq.id)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+                  >
+                    {pq.reflection ? "View reflection" : "Add reflection"}
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

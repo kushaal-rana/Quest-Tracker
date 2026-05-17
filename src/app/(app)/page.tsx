@@ -17,6 +17,8 @@ import { calcCurrentStreak } from "@/features/streaks/queries";
 import { elapsedFraction } from "@/lib/format/date";
 import { formatHours } from "@/lib/format/hours";
 import { QuarterEndBanner } from "./_components/quarter-end-banner";
+import { listArchivedQuestsForQuarter } from "@/features/quests/queries";
+import { ArchivedQuestsSection } from "@/features/quests/components/archived-quests-section";
 
 const NEW_QUEST_BUTTON_CLASS =
   "inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-[14px] font-medium text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -29,11 +31,12 @@ export default async function DashboardPage() {
   const wStart = weekStartUTC(now);
   const wEnd = weekEndUTC(now);
 
-  const [quests, progress, weeklySummary, streak] = await Promise.all([
+  const [quests, progress, weeklySummary, streak, archivedQuests] = await Promise.all([
     listQuestsForQuarter(user.id, quarter.id),
     Promise.resolve(calcQuarterProgress(quarter)),
     getWeeklySummary(user.id, wStart, wEnd),
     calcCurrentStreak(user.id),
+    listArchivedQuestsForQuarter(user.id, quarter.id),
   ]);
 
   const displayName =
@@ -126,6 +129,9 @@ export default async function DashboardPage() {
           />
         )}
       </div>
+
+      {/* Archived quests — collapsible, only renders if any exist */}
+      <ArchivedQuestsSection quests={archivedQuests} />
     </div>
   );
 }

@@ -126,6 +126,54 @@ export async function listActiveQuestsForPicker(
 }
 
 /**
+ * List all archived quests in a quarter, with computed progress.
+ * Same shape as listQuestsForQuarter — just flips the archived filter.
+ */
+export async function listArchivedQuestsForQuarter(
+  userId: string,
+  quarterId: string,
+): Promise<QuestWithProgress[]> {
+  const rows = await db
+    .select({
+      quest: quests,
+      lessonsCompleted: sql<number>`coalesce((
+        select count(*)::int
+        from ${lessons}
+        where ${lessons.questId} = ${quests.id}
+          and ${lessons.completedAt} is not null
+      ), 0)`,
+      hoursLogged: sql<number>`coalesce((
+        select sum(${sessions.hours})::float
+        from ${sessions}
+        where ${sessions.questId} = ${quests.id}
+      ), 0)`,
+      lastLoggedAt: sql<Date | null>`
+        GREATEST(
+          (select max(${sessions.loggedAt}) from ${sessions} where ${sessions.questId} = ${quests.id}),
+          (select max(${lessons.completedAt}) from ${lessons} where ${lessons.questId} = ${quests.id})
+        )
+      `,
+    })
+    .from(quests)
+    .where(
+      and(
+        eq(quests.userId, userId),
+        eq(quests.quarterId, quarterId),
+        eq(quests.archived, true),
+      ),
+    )
+    .orderBy(asc(quests.position), asc(quests.createdAt));
+
+  return rows.map(({ quest, lessonsCompleted, hoursLogged, lastLoggedAt }) => {
+    const progress =
+      quest.measure === "lessons"
+        ? lessonsCompleted / quest.targetCount
+        : hoursLogged / quest.targetCount;
+    return { ...quest, lessonsCompleted, hoursLogged, progress, lastLoggedAt: lastLoggedAt ?? null };
+  });
+}
+
+/**
  * Next position number for a new quest in a quarter (append to bottom).
  */
 export async function nextPositionForQuarter(userId: string, quarterId: string): Promise<number> {
