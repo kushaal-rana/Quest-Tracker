@@ -95,6 +95,25 @@ export function formatDateOnly(d: Date): string {
 }
 
 /**
+ * Days since a session was last logged — for the "last worked" indicator.
+ *
+ *   formatLastWorked(null)                            → "Never"
+ *   formatLastWorked(<today's date>)                  → "Today"
+ *   formatLastWorked(<yesterday's date>)              → "Yesterday"
+ *   formatLastWorked(<3 days ago>)                    → "3 days ago"
+ *   formatLastWorked(<8+ days ago>)                   → "Apr 12"
+ */
+export function formatLastWorked(date: Date | null, now: Date = new Date()): string {
+  if (!date) return "Never";
+  const diffMs = now.getTime() - date.getTime();
+  const day = Math.floor(diffMs / 86_400_000);
+  if (day <= 0) return "Today";
+  if (day === 1) return "Yesterday";
+  if (day < 7) return `${day} days ago`;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/**
  * Human-readable relative time.
  *
  *   formatRelativeTime(Date.now() - 30_000)        → "just now"

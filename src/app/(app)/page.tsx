@@ -1,33 +1,49 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { BookOpen, CalendarDays, Clock, Flame, Plus } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { ROUTES } from "@/lib/constants";
 import { getOrCreateCurrentQuarter } from "@/features/quarters/queries";
 import { calcQuarterProgress } from "@/features/quarters/lib";
 import { listQuestsForQuarter } from "@/features/quests/queries";
 import { QuestRow } from "@/features/quests/components/quest-row";
+import { ScorecardTile } from "@/features/insights/components/scorecard-tile";
+import { QuarterRing } from "@/features/insights/components/quarter-ring";
+import {
+  getWeeklySummary,
+  weekStartUTC,
+  weekEndUTC,
+} from "@/features/insights/queries";
+import { calcCurrentStreak } from "@/features/streaks/queries";
+import { elapsedFraction } from "@/lib/format/date";
+import { formatHours } from "@/lib/format/hours";
+import { QuarterEndBanner } from "./_components/quarter-end-banner";
 
-/** Shared button class used in two places; kept inline since it's page-specific. */
 const NEW_QUEST_BUTTON_CLASS =
   "inline-flex items-center gap-2 rounded-md bg-foreground px-4 py-2.5 text-[14px] font-medium text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
-/**
- * Dashboard — the heart of the app.
- *
- * Server component: fetches user, current quarter, and all quests in one
- * server-side render. No loading spinners; the HTML arrives populated.
- */
 export default async function DashboardPage() {
   const user = await requireUser();
   const quarter = await getOrCreateCurrentQuarter(user.id);
-  const quests = await listQuestsForQuarter(user.id, quarter.id);
-  const progress = calcQuarterProgress(quarter);
+
+  const now = new Date();
+  const wStart = weekStartUTC(now);
+  const wEnd = weekEndUTC(now);
+
+  const [quests, progress, weeklySummary, streak] = await Promise.all([
+    listQuestsForQuarter(user.id, quarter.id),
+    Promise.resolve(calcQuarterProgress(quarter)),
+    getWeeklySummary(user.id, wStart, wEnd),
+    calcCurrentStreak(user.id),
+  ]);
 
   const displayName =
     (user.user_metadata?.full_name as string) ||
     (user.user_metadata?.name as string) ||
     "there";
   const firstName = displayName.split(" ")[0];
+
+  const streakColor =
+    streak >= 14 ? "text-red-500" : streak >= 3 ? "text-orange-500" : undefined;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -51,42 +67,99 @@ export default async function DashboardPage() {
           : `${quests.length} active quest${quests.length === 1 ? "" : "s"} this quarter.`}
       </p>
 
-      <div className="mt-10">
-        {quests.length === 0 ? <EmptyState /> : <QuestTable quests={quests} elapsed={progress.fraction} />}
+      {/* Quarter-end reflection prompt */}
+      <QuarterEndBanner
+        quarterId={quarter.id}
+        quarterLabel={quarter.label}
+        daysRemaining={progress.daysRemaining}
+        hasReflection={!!quarter.reflection}
+      />
+
+      {/* Scorecard tiles + quarter ring */}
+      <div className="mt-8 grid grid-cols-[1fr_1fr_1fr_1fr_auto] items-stretch gap-3">
+        <ScorecardTile
+          label="Hours this week"
+          value={formatHours(weeklySummary.hoursThisWeek)}
+          subtext="across all quests"
+          Icon={Clock}
+          iconColor="text-indigo-500"
+        />
+        <ScorecardTile
+          label="Lessons this week"
+          value={weeklySummary.lessonsThisWeek}
+          subtext="completed"
+          Icon={BookOpen}
+          iconColor="text-emerald-500"
+        />
+        <ScorecardTile
+          label="Current streak"
+          value={streak === 0 ? "–" : `${streak}d`}
+          subtext={streak === 0 ? "Log today to start" : streak === 1 ? "1 day" : `${streak} days in a row`}
+          Icon={Flame}
+          iconColor={streakColor ?? "text-muted-foreground"}
+          valueColor={streakColor}
+        />
+        <ScorecardTile
+          label="Days remaining"
+          value={progress.daysRemaining}
+          subtext={`of ${progress.totalDays} in ${quarter.label}`}
+          Icon={CalendarDays}
+          iconColor="text-violet-500"
+        />
+        <QuarterRing
+          fraction={progress.fraction}
+          daysElapsed={progress.daysElapsed}
+          totalDays={progress.totalDays}
+          daysRemaining={progress.daysRemaining}
+        />
+      </div>
+
+      {/* Quest table */}
+      <div className="mt-8">
+        {quests.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <QuestTable
+            quests={quests}
+            quarterElapsed={progress.fraction}
+            quarterStartDate={quarter.startDate}
+          />
+        )}
       </div>
     </div>
   );
 }
-
-// ─── Quest table ─────────────────────────────────────────────────────────────
 
 function QuestTable({
   quests,
-  elapsed,
+  quarterElapsed,
+  quarterStartDate,
 }: {
   quests: Awaited<ReturnType<typeof listQuestsForQuarter>>;
-  elapsed: number;
+  quarterElapsed: number;
+  quarterStartDate: string;
 }) {
+  const now = new Date();
   return (
     <div className="rounded-xl border border-border bg-card">
-      {/* Column headers */}
-      <div className="grid grid-cols-[minmax(0,2.4fr)_minmax(0,3fr)_minmax(0,1.6fr)_auto] items-center gap-6 border-b border-border px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+      <div className="grid grid-cols-[minmax(0,2.4fr)_minmax(0,3fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_auto] items-center gap-6 border-b border-border px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         <div>Quest</div>
         <div>Progress</div>
         <div>Logged</div>
+        <div>Last worked</div>
         <div className="justify-self-end">Pace</div>
       </div>
-      {/* Rows */}
       <div className="divide-y divide-border">
-        {quests.map((q) => (
-          <QuestRow key={q.id} quest={q} quarterElapsed={elapsed} />
-        ))}
+        {quests.map((q) => {
+          const elapsed = q.deadline
+            ? Math.min(1, elapsedFraction(quarterStartDate, q.deadline, now))
+            : quarterElapsed;
+          return <QuestRow key={q.id} quest={q} elapsed={elapsed} />;
+        })}
       </div>
     </div>
   );
 }
-
-// ─── Empty state ─────────────────────────────────────────────────────────────
 
 function EmptyState() {
   return (

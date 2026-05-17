@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { NAV_SECTIONS } from "@/lib/constants";
 import { getOrCreateCurrentQuarter } from "@/features/quarters/queries";
 import { listActiveQuestsForPicker } from "@/features/quests/queries";
 import { CommandPalette } from "@/features/command-palette/components/command-palette";
+import { SidebarNav } from "./_components/sidebar-nav";
+import { TopbarBreadcrumb } from "./_components/topbar-breadcrumb";
 import { SignOutButton } from "./sign-out-button";
 
 /**
@@ -37,35 +37,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="text-[20px] font-semibold tracking-tight">Quest Tracker</span>
         </div>
 
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.label} className="mb-5 last:mb-0">
-            <div className="px-2 pt-2 pb-2 text-[14px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-              {section.label}
-            </div>
-            {section.items.map(({ href, label, Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className="group flex w-full items-center gap-3 rounded-md px-2 py-2 text-[18px] font-medium leading-6 text-foreground/85 transition-colors hover:bg-foreground/[0.07] hover:text-foreground"
-              >
-                <Icon
-                  className="h-[22px] w-[22px] shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
-                  strokeWidth={1.75}
-                  aria-hidden="true"
-                />
-                <span>{label}</span>
-              </Link>
-            ))}
-          </div>
-        ))}
+        <SidebarNav />
       </aside>
 
       <div className="flex flex-col overflow-hidden">
         <header className="flex items-center gap-3 border-b border-border bg-background px-6 py-3.5">
-          <div className="text-[15px] text-muted-foreground">
-            Workspace <span className="mx-1.5 opacity-60">/</span>
-            <span className="font-medium text-foreground">Dashboard</span>
-          </div>
+          <TopbarBreadcrumb />
 
           <div className="ml-auto flex items-center gap-3">
             <div className="hidden min-w-[320px] cursor-pointer items-center gap-2 rounded-md border border-border bg-muted/50 px-3.5 py-2 text-[14px] text-muted-foreground transition-colors hover:bg-muted md:flex">

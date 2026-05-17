@@ -26,12 +26,18 @@ const lessonsList = z
   )
   .pipe(z.array(z.string().max(200)).max(200));
 
+const deadlineField = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a valid date")
+  .optional();
+
 export const createQuestSchema = z.object({
   name: trimmed(100),
   type: z.enum(QUEST_TYPES),
   category: z.enum(QUEST_CATEGORIES),
   measure: z.enum(QUEST_MEASURES),
   targetCount: z.coerce.number().int().min(1, "Must be at least 1").max(10_000),
+  deadline: deadlineField,
   /** Optional newline-separated lesson titles (only meaningful when measure=lessons). */
   lessons: lessonsList.optional(),
 });
@@ -44,6 +50,7 @@ export const updateQuestSchema = z.object({
   type: z.enum(QUEST_TYPES),
   category: z.enum(QUEST_CATEGORIES),
   targetCount: z.coerce.number().int().min(1).max(10_000),
+  deadline: deadlineField,
 });
 
 export type UpdateQuestInput = z.infer<typeof updateQuestSchema>;

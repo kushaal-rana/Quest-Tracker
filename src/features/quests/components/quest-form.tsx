@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { CATEGORY_OPTIONS, MEASURE_META, MEASURE_OPTIONS, ROUTES } from "@/lib/constants";
 import type { Quest, QuestMeasure, QuestType } from "@/lib/db/schema";
+import { formatDateOnly, quarterFor } from "@/lib/format/date";
 import { createQuestAction, updateQuestAction } from "../actions";
 import { INITIAL_FORM_STATE } from "../schemas";
 
@@ -29,6 +30,8 @@ export function QuestForm({ quest }: Props) {
   const action = isEdit ? updateQuestAction : createQuestAction;
   const [state, formAction, isPending] = useActionState(action, INITIAL_FORM_STATE);
   const [measure, setMeasure] = useState<QuestMeasure>(quest?.measure ?? "lessons");
+  const today = formatDateOnly(new Date());
+  const quarterEnd = quarterFor().endDate;
 
   const errs = state.fieldErrors ?? {};
   const cancelHref = isEdit ? ROUTES.questDetail(quest.id) : ROUTES.dashboard;
@@ -121,6 +124,22 @@ export function QuestForm({ quest }: Props) {
           />
         </Field>
       </div>
+
+      {/* Deadline — optional, both create and edit */}
+      <Field
+        label="Deadline (optional)"
+        hint={`Finish this quest by a specific date within the quarter. Pace will calculate against this date instead of ${quarterEnd}.`}
+        error={errs.deadline?.[0]}
+      >
+        <input
+          name="deadline"
+          type="date"
+          defaultValue={quest?.deadline ?? ""}
+          min={today}
+          max={quarterEnd}
+          className={INPUT_CLASS}
+        />
+      </Field>
 
       {/* Lessons paste — only on CREATE for measure=lessons */}
       {!isEdit && measure === "lessons" && (

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, CalendarDays, Clock, Flame, Pencil } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { ROUTES, formatMeasure } from "@/lib/constants";
 import { getQuestById } from "@/features/quests/queries";
@@ -12,6 +12,9 @@ import { LessonsList } from "@/features/lessons/components/lessons-list";
 import { getQuestActivity, listSessionsForQuest } from "@/features/sessions/queries";
 import { SessionLogForm } from "@/features/sessions/components/session-log-form";
 import { SessionList } from "@/features/sessions/components/session-list";
+import { getQuestCurrentStreak } from "@/features/streaks/queries";
+import { formatLastWorked } from "@/lib/format/date";
+import { cn } from "@/lib/utils";
 
 /**
  * Quest detail page (Phase 3 — full version).
@@ -33,13 +36,23 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
 
   const isLessonQuest = quest.measure === "lessons";
 
-  // Fetch all the data the page needs in parallel
-  const [activity, sessions, lessons, openLessons] = await Promise.all([
+  const [activity, sessions, lessons, openLessons, questStreak] = await Promise.all([
     getQuestActivity(user.id, quest.id, 14),
     listSessionsForQuest(user.id, quest.id, 25),
     isLessonQuest ? listLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
     isLessonQuest ? listOpenLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
+    getQuestCurrentStreak(user.id, quest.id),
   ]);
+
+  const lastSessionAt = sessions[0]?.loggedAt ?? null;
+  const lastLessonAt = lessons.reduce<Date | null>((max, l) => {
+    if (!l.completedAt) return max;
+    return !max || l.completedAt > max ? l.completedAt : max;
+  }, null);
+  const lastLoggedAt =
+    lastSessionAt && lastLessonAt
+      ? (lastSessionAt > lastLessonAt ? lastSessionAt : lastLessonAt)
+      : (lastSessionAt ?? lastLessonAt);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -77,6 +90,26 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
                 {formatMeasure(quest.targetCount, quest.measure)}
               </span>
             </span>
+            {questStreak > 0 && (
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-medium",
+                  questStreak >= 7
+                    ? "border-red-200 bg-red-50 text-red-600"
+                    : questStreak >= 3
+                      ? "border-orange-200 bg-orange-50 text-orange-600"
+                      : "border-border bg-muted/40 text-foreground/80",
+                )}
+              >
+                <Flame className="h-3 w-3" strokeWidth={2} />
+                {questStreak}d streak
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-[12px] font-medium text-foreground/80">
+              <Clock className="h-3 w-3" strokeWidth={2} />
+              {lastLoggedAt ? formatLastWorked(lastLoggedAt) : "Not started"}
+            </span>
+            {quest.deadline && <DeadlineBadge deadline={quest.deadline} />}
           </div>
         </div>
 
@@ -110,5 +143,32 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
       {/* Recent sessions */}
       <SessionList sessions={sessions} />
     </div>
+  );
+}
+
+function DeadlineBadge({ deadline }: { deadline: string }) {
+  const [y, m, d] = deadline.split("-").map(Number);
+  const deadlineDate = new Date(y, m - 1, d);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const daysLeft = Math.ceil((deadlineDate.getTime() - today.getTime()) / 86_400_000);
+
+  const label = deadlineDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const subtext =
+    daysLeft > 0 ? `${daysLeft}d left` : daysLeft === 0 ? "due today" : "passed";
+  const isPast = daysLeft < 0;
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] font-medium",
+        isPast
+          ? "border-red-200 bg-red-50 text-red-600"
+          : "border-border bg-muted/40 text-foreground/80",
+      )}
+    >
+      <CalendarDays className="h-3 w-3" strokeWidth={2} />
+      Due {label} · {subtext}
+    </span>
   );
 }

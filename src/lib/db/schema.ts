@@ -69,6 +69,7 @@ export const quests = pgTable(
     color: text("color").notNull(),
     position: integer("position").notNull().default(0),
     archived: boolean("archived").notNull().default(false),
+    deadline: date("deadline"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
@@ -130,7 +131,19 @@ export const weeklyFocus = pgTable(
   }),
 );
 
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().unique(),
+  timezone: text("timezone").notNull().default("UTC"),
+  displayNameOverride: text("display_name_override"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─── Inferred types (use these in features instead of redefining) ────────────
+
+export type Profile = typeof profiles.$inferSelect;
+export type NewProfile = typeof profiles.$inferInsert;
 
 export type Quarter = typeof quarters.$inferSelect;
 export type NewQuarter = typeof quarters.$inferInsert;

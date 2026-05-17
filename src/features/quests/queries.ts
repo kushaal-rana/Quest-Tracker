@@ -21,6 +21,8 @@ export type QuestWithProgress = Quest & {
    *   measure=hours   → hoursLogged / targetCount
    */
   progress: number;
+  /** Timestamp of the most recent session, or null if none logged yet */
+  lastLoggedAt: Date | null;
 };
 
 /**
@@ -45,6 +47,12 @@ export async function listQuestsForQuarter(
         from ${sessions}
         where ${sessions.questId} = ${quests.id}
       ), 0)`,
+      lastLoggedAt: sql<Date | null>`
+        GREATEST(
+          (select max(${sessions.loggedAt}) from ${sessions} where ${sessions.questId} = ${quests.id}),
+          (select max(${lessons.completedAt}) from ${lessons} where ${lessons.questId} = ${quests.id})
+        )
+      `,
     })
     .from(quests)
     .where(
@@ -56,7 +64,7 @@ export async function listQuestsForQuarter(
     )
     .orderBy(asc(quests.position), asc(quests.createdAt));
 
-  return rows.map(({ quest, lessonsCompleted, hoursLogged }) => {
+  return rows.map(({ quest, lessonsCompleted, hoursLogged, lastLoggedAt }) => {
     const progress =
       quest.measure === "lessons"
         ? lessonsCompleted / quest.targetCount
@@ -67,6 +75,7 @@ export async function listQuestsForQuarter(
       lessonsCompleted,
       hoursLogged,
       progress,
+      lastLoggedAt: lastLoggedAt ?? null,
     };
   });
 }

@@ -43,6 +43,8 @@ export async function createQuestAction(
     category: formData.get("category"),
     measure: formData.get("measure"),
     targetCount: formData.get("targetCount"),
+    // Empty string from an unfilled date input must become undefined for .optional()
+    deadline: (formData.get("deadline") as string) || undefined,
     // formData.get returns `null` when a field isn't rendered (lessons textarea
     // is hidden when measure=hours). Zod's `.optional()` only accepts undefined.
     lessons: formData.get("lessons") ?? undefined,
@@ -73,6 +75,7 @@ export async function createQuestAction(
         measure: input.measure,
         targetCount: input.targetCount,
         color: colorForCategory(input.category),
+        deadline: input.deadline ?? null,
         position,
       })
       .returning({ id: quests.id });
@@ -107,6 +110,7 @@ export async function updateQuestAction(
     type: formData.get("type"),
     category: formData.get("category"),
     targetCount: formData.get("targetCount"),
+    deadline: (formData.get("deadline") as string) || undefined,
   });
 
   if (!parsed.success) {
@@ -127,6 +131,7 @@ export async function updateQuestAction(
       category: input.category,
       targetCount: input.targetCount,
       color: colorForCategory(input.category),
+      deadline: input.deadline ?? null,
     })
     .where(and(eq(quests.id, input.id), eq(quests.userId, user.id)));
 

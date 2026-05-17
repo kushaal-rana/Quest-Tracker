@@ -26,8 +26,12 @@ export const ROUTES = {
   // Quests
   questNew: "/quest/new",
   questDetail: (id: string) => `/quest/${id}`,
+
+  // Quarter reflection
+  quarterReview: (quarterId: string) => `/q/${quarterId}/review`,
 } as const;
 
 export type RoutePath =
-  | (typeof ROUTES)[keyof Omit<typeof ROUTES, "questDetail">]
-  | ReturnType<typeof ROUTES.questDetail>;
+  | (typeof ROUTES)[keyof Omit<typeof ROUTES, "questDetail" | "quarterReview">]
+  | ReturnType<typeof ROUTES.questDetail>
+  | ReturnType<typeof ROUTES.quarterReview>;
