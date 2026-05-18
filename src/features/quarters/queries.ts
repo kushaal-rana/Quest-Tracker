@@ -102,7 +102,7 @@ export async function getPastQuarterSummaries(
     .from(quarters)
     .leftJoin(
       quests,
-      and(eq(quests.quarterId, quarters.id), eq(quests.archived, false)),
+      and(eq(quests.quarterId, quarters.id), eq(quests.userId, userId), eq(quests.archived, false)),
     )
     .where(and(eq(quarters.userId, userId), ne(quarters.id, currentQuarterId)))
     .groupBy(quarters.id)
@@ -111,6 +111,6 @@ export async function getPastQuarterSummaries(
   return rows.map(({ quarter, totalQuests, avgProgress }) => ({
     ...quarter,
     totalQuests,
-    completedPct: Math.round(Math.min(avgProgress, 1) * 100),
+    completedPct: Math.round(Math.min(Number(avgProgress), 1) * 100),
   }));
 }

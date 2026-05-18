@@ -85,6 +85,21 @@ export function quarterFor(asOf: Date = new Date()): {
 }
 
 /**
+ * Format a date as "Apr 1, 2026" — for human-readable display.
+ * Accepts a Date or a "YYYY-MM-DD" string (parsed at local midnight).
+ */
+export function formatShortDate(d: Date | string): string {
+  const date =
+    d instanceof Date
+      ? d
+      : (() => {
+          const [y, m, day] = (d as string).split("-").map(Number);
+          return new Date(y, m - 1, day);
+        })();
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+/**
  * Format a Date as "YYYY-MM-DD" (date-only string for Postgres).
  */
 export function formatDateOnly(d: Date): string {

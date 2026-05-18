@@ -11,6 +11,7 @@ import { QuarterRing } from "@/features/insights/components/quarter-ring";
 import { CumulativeChart } from "@/features/insights/components/cumulative-chart";
 import { QuestProgressBar } from "@/features/quests/components/quest-progress-bar";
 import { formatHours } from "@/lib/format/hours";
+import { formatShortDate } from "@/lib/format/date";
 import { formatMeasure, ROUTES } from "@/lib/constants";
 
 export const metadata = { title: "Quarter · Quest Tracker" };
@@ -191,7 +192,7 @@ export default async function QuarterPage() {
                   <div>
                     <div className="text-[14px] font-medium text-foreground">{pq.label}</div>
                     <div className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                      {pq.startDate} → {pq.endDate}
+                      {formatShortDate(pq.startDate)} → {formatShortDate(pq.endDate)}
                     </div>
                     {pq.reflection && (
                       <p className="mt-1 line-clamp-1 max-w-sm text-[12px] text-muted-foreground">
