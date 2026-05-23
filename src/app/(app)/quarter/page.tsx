@@ -6,6 +6,7 @@ import { calcQuarterProgress } from "@/features/quarters/lib";
 import { listQuestsForQuarter } from "@/features/quests/queries";
 import { getCumulativeProgress } from "@/features/insights/queries";
 import { calcCurrentStreak } from "@/features/streaks/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import { ScorecardTile } from "@/features/insights/components/scorecard-tile";
 import { QuarterRing } from "@/features/insights/components/quarter-ring";
 import { CumulativeChart } from "@/features/insights/components/cumulative-chart";
@@ -18,13 +19,16 @@ export const metadata = { title: "Quarter · Quest Tracker" };
 
 export default async function QuarterPage() {
   const user = await requireUser();
-  const quarter = await getOrCreateCurrentQuarter(user.id);
+  const [quarter, tz] = await Promise.all([
+    getOrCreateCurrentQuarter(user.id),
+    getUserTimezone(user.id),
+  ]);
   const progress = calcQuarterProgress(quarter);
 
   const [quests, cumulativeSeries, streak, pastQuarters] = await Promise.all([
     listQuestsForQuarter(user.id, quarter.id),
-    getCumulativeProgress(user.id, quarter.id),
-    calcCurrentStreak(user.id),
+    getCumulativeProgress(user.id, quarter.id, tz),
+    calcCurrentStreak(user.id, tz),
     getPastQuarterSummaries(user.id, quarter.id),
   ]);
 

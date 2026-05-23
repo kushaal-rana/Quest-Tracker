@@ -4,51 +4,94 @@ import { and, asc, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { lessons, quests, sessions } from "@/lib/db/schema";
 
-// ─── UTC date helpers (server-side, no date-fns to avoid TZ inconsistency) ───
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** Monday midnight UTC of the week containing `date`. */
-export function weekStartUTC(date: Date = new Date()): Date {
-  const d = new Date(date);
-  const day = d.getUTCDay(); // 0=Sun
-  const daysFromMonday = (day + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - daysFromMonday);
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+/**
+ * Returns a Drizzle sql.raw literal for an IANA timezone string.
+ * Using sql.raw avoids Drizzle binding the zone as a parameter ($1, $5…),
+ * which causes PostgreSQL to reject GROUP BY when SELECT and GROUP BY use
+ * different parameter indices for the same AT TIME ZONE expression.
+ */
+function tzLit(tz: string) {
+  // IANA names: letters, digits, underscore, slash, plus, hyphen
+  if (!/^[A-Za-z0-9/_+\-]+$/.test(tz)) throw new Error(`Invalid timezone: "${tz}"`);
+  return sql.raw(`'${tz}'`);
 }
 
-/** Sunday end-of-day UTC of the week containing `date`. */
-export function weekEndUTC(date: Date = new Date()): Date {
-  const start = weekStartUTC(date);
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 6);
-  end.setUTCHours(23, 59, 59, 999);
-  return end;
+// ─── Timezone-aware date helpers ──────────────────────────────────────────────
+
+/** UTC offset in ms for a given IANA timezone at a specific UTC instant. */
+function tzOffsetMs(utcDate: Date, tz: string): number {
+  const parse = (zone: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    }).formatToParts(utcDate);
+
+  const toMs = (ps: Intl.DateTimeFormatPart[]) => {
+    const v = (t: string) => Number(ps.find((p) => p.type === t)?.value ?? 0);
+    return Date.UTC(v("year"), v("month") - 1, v("day"), v("hour") % 24, v("minute"), v("second"));
+  };
+
+  return toMs(parse(tz)) - toMs(parse("UTC"));
 }
 
-/** First moment of a UTC month. */
-export function monthStartUTC(date: Date = new Date()): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1, 0, 0, 0, 0));
+/** Monday midnight in `tz` for the week containing `date`, as a UTC Date. */
+export function weekStartForTZ(tz = "UTC", date: Date = new Date()): Date {
+  const ymd = date.toLocaleDateString("en-CA", { timeZone: tz });
+  const [y, m, d] = ymd.split("-").map(Number);
+  const wdStr = date.toLocaleDateString("en-US", { timeZone: tz, weekday: "short" });
+  const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wdStr);
+  const daysBack = wd === 0 ? 6 : wd - 1;
+  const monDay = d - daysBack;
+  const noonUTC = new Date(Date.UTC(y, m - 1, monDay, 12, 0, 0));
+  return new Date(Date.UTC(y, m - 1, monDay, 0, 0, 0) - tzOffsetMs(noonUTC, tz));
 }
 
-/** Last moment of a UTC month. */
-export function monthEndUTC(date: Date = new Date()): Date {
-  const d = new Date(date);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 23, 59, 59, 999));
+/** Sunday 23:59:59.999 in `tz` for the week containing `date`, as a UTC Date. */
+export function weekEndForTZ(tz = "UTC", date: Date = new Date()): Date {
+  const start = weekStartForTZ(tz, date);
+  return new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
 }
 
-/** Start of today UTC. */
-export function todayStartUTC(): Date {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
+/** First moment of the month containing `date` in `tz`, as a UTC Date. */
+export function monthStartForTZ(tz = "UTC", date: Date = new Date()): Date {
+  const ymd = date.toLocaleDateString("en-CA", { timeZone: tz });
+  const [y, m] = ymd.split("-").map(Number);
+  const noonUTC = new Date(Date.UTC(y, m - 1, 1, 12, 0, 0));
+  return new Date(Date.UTC(y, m - 1, 1, 0, 0, 0) - tzOffsetMs(noonUTC, tz));
 }
 
-/** End of today UTC. */
-export function todayEndUTC(): Date {
-  const d = new Date();
-  d.setUTCHours(23, 59, 59, 999);
-  return d;
+/** Last moment of the month containing `date` in `tz`, as a UTC Date. */
+export function monthEndForTZ(tz = "UTC", date: Date = new Date()): Date {
+  const ymd = date.toLocaleDateString("en-CA", { timeZone: tz });
+  const [y, m] = ymd.split("-").map(Number);
+  const nm = m === 12 ? 1 : m + 1;
+  const ny = m === 12 ? y + 1 : y;
+  const nextNoon = new Date(Date.UTC(ny, nm - 1, 1, 12, 0, 0));
+  return new Date(Date.UTC(ny, nm - 1, 1, 0, 0, 0) - tzOffsetMs(nextNoon, tz) - 1);
 }
+
+/** Start of today in `tz`, as a UTC Date. */
+function todayStartForTZ(tz = "UTC"): Date {
+  const ymd = new Date().toLocaleDateString("en-CA", { timeZone: tz });
+  const [y, m, d] = ymd.split("-").map(Number);
+  const noonUTC = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - tzOffsetMs(noonUTC, tz));
+}
+
+/** End of today in `tz`, as a UTC Date. */
+function todayEndForTZ(tz = "UTC"): Date {
+  return new Date(todayStartForTZ(tz).getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+// Legacy aliases — kept for backward compatibility with any imports that haven't been updated yet.
+export const weekStartUTC = (d?: Date) => weekStartForTZ("UTC", d);
+export const weekEndUTC = (d?: Date) => weekEndForTZ("UTC", d);
+export const monthStartUTC = (d?: Date) => monthStartForTZ("UTC", d);
+export const monthEndUTC = (d?: Date) => monthEndForTZ("UTC", d);
 
 // ─── Weekly summary ───────────────────────────────────────────────────────────
 
@@ -103,17 +146,18 @@ export type DaySessionRow = {
 };
 
 /**
- * Sessions aggregated by UTC day + quest, within a date range.
+ * Sessions aggregated by local day (in `tz`) + quest, within a date range.
  * Joins quests to get name/color for the bar chart legend.
  */
 export async function getSessionsByDayForRange(
   userId: string,
   from: Date,
   to: Date,
+  tz = "UTC",
 ): Promise<DaySessionRow[]> {
   const rows = await db
     .select({
-      date: sql<string>`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+      date: sql<string>`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
       questId: sessions.questId,
       questName: quests.name,
       questColor: quests.color,
@@ -129,7 +173,7 @@ export async function getSessionsByDayForRange(
       ),
     )
     .groupBy(
-      sql`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+      sql`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
       sessions.questId,
       quests.name,
       quests.color,
@@ -155,10 +199,10 @@ export type TodayQuestGroup = {
 };
 
 /**
- * All sessions logged today (UTC), grouped by quest.
+ * All sessions logged today (in `tz`), grouped by quest.
  * Used by the /today page.
  */
-export async function getTodaySessionsGrouped(userId: string): Promise<TodayQuestGroup[]> {
+export async function getTodaySessionsGrouped(userId: string, tz = "UTC"): Promise<TodayQuestGroup[]> {
   const rows = await db
     .select({
       sessionId: sessions.id,
@@ -176,8 +220,8 @@ export async function getTodaySessionsGrouped(userId: string): Promise<TodayQues
     .where(
       and(
         eq(sessions.userId, userId),
-        gte(sessions.loggedAt, todayStartUTC()),
-        lte(sessions.loggedAt, todayEndUTC()),
+        gte(sessions.loggedAt, todayStartForTZ(tz)),
+        lte(sessions.loggedAt, todayEndForTZ(tz)),
       ),
     )
     .orderBy(desc(sessions.loggedAt));
@@ -314,12 +358,13 @@ export type MonthSummary = {
 /**
  * Aggregate sessions + lesson completions for a month range.
  * questTotals: per-quest hours + lessons done
- * sessionsByDay: daily total hours for the heatmap
+ * sessionsByDay: daily total hours for the heatmap (grouped by local day in `tz`)
  */
 export async function getMonthSummary(
   userId: string,
   from: Date,
   to: Date,
+  tz = "UTC",
 ): Promise<MonthSummary> {
   const [hoursByQuest, lessonsByQuest, dayRows] = await Promise.all([
     // Hours per quest
@@ -355,17 +400,17 @@ export async function getMonthSummary(
       )
       .groupBy(lessons.questId),
 
-    // Daily total hours (for heatmap)
+    // Daily total hours (for heatmap, grouped by local day in tz)
     db
       .select({
-        date: sql<string>`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
         hours: sql<number>`coalesce(sum(${sessions.hours})::float, 0)`,
       })
       .from(sessions)
       .where(
         and(eq(sessions.userId, userId), gte(sessions.loggedAt, from), lte(sessions.loggedAt, to)),
       )
-      .groupBy(sql`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`),
+      .groupBy(sql`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`),
   ]);
 
   const lessonMap = new Map(lessonsByQuest.map((r) => [r.questId, Number(r.count) || 0]));
@@ -404,10 +449,12 @@ export type CumulativeQuestSeries = {
  *
  * Returns only quests with at least one data point.
  * Caller can render these as multi-line Recharts chart.
+ * Days are grouped by local date in `tz`.
  */
 export async function getCumulativeProgress(
   userId: string,
   quarterId: string,
+  tz = "UTC",
 ): Promise<CumulativeQuestSeries[]> {
   const questList = await db
     .select({
@@ -426,10 +473,10 @@ export async function getCumulativeProgress(
   if (questList.length === 0) return [];
 
   const [sessionRows, lessonRows] = await Promise.all([
-    // Hours by day per quest
+    // Hours by local day per quest
     db
       .select({
-        date: sql<string>`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
         questId: sessions.questId,
         hours: sql<number>`coalesce(sum(${sessions.hours})::float, 0)`,
       })
@@ -437,15 +484,15 @@ export async function getCumulativeProgress(
       .innerJoin(quests, and(eq(quests.id, sessions.questId), eq(quests.quarterId, quarterId)))
       .where(eq(sessions.userId, userId))
       .groupBy(
-        sql`to_char(${sessions.loggedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+        sql`to_char(${sessions.loggedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
         sessions.questId,
       )
       .orderBy(sql`1 asc`),
 
-    // Lesson completions by day per quest
+    // Lesson completions by local day per quest
     db
       .select({
-        date: sql<string>`to_char(${lessons.completedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+        date: sql<string>`to_char(${lessons.completedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
         questId: lessons.questId,
         count: sql<number>`count(*)::int`,
       })
@@ -453,7 +500,7 @@ export async function getCumulativeProgress(
       .innerJoin(quests, and(eq(quests.id, lessons.questId), eq(quests.quarterId, quarterId)))
       .where(and(eq(lessons.userId, userId), sql`${lessons.completedAt} is not null`))
       .groupBy(
-        sql`to_char(${lessons.completedAt} at time zone 'UTC', 'YYYY-MM-DD')`,
+        sql`to_char(${lessons.completedAt} at time zone ${tzLit(tz)}, 'YYYY-MM-DD')`,
         lessons.questId,
       )
       .orderBy(sql`1 asc`),

@@ -2,6 +2,7 @@ import { Flame } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getOrCreateCurrentQuarter } from "@/features/quarters/queries";
 import { listQuestsForQuarter } from "@/features/quests/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import {
   calcCurrentStreak,
   getLongestStreak,
@@ -17,12 +18,15 @@ const MILESTONE_DAYS = [3, 7, 14, 30, 60, 90] as const;
 
 export default async function StreaksPage() {
   const user = await requireUser();
-  const quarter = await getOrCreateCurrentQuarter(user.id);
+  const [quarter, tz] = await Promise.all([
+    getOrCreateCurrentQuarter(user.id),
+    getUserTimezone(user.id),
+  ]);
 
   const [currentStreak, longest, history, quests] = await Promise.all([
-    calcCurrentStreak(user.id),
-    getLongestStreak(user.id),
-    getStreakHistory(user.id, 91),
+    calcCurrentStreak(user.id, tz),
+    getLongestStreak(user.id, tz),
+    getStreakHistory(user.id, 91, tz),
     listQuestsForQuarter(user.id, quarter.id),
   ]);
 
@@ -30,6 +34,7 @@ export default async function StreaksPage() {
     user.id,
     quests.map((q) => q.id),
     quests.map((q) => ({ id: q.id, name: q.name, color: q.color })),
+    tz,
   );
 
   const nextMilestone = MILESTONE_DAYS.find((m) => m > currentStreak) ?? null;

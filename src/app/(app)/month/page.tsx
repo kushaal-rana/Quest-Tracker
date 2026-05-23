@@ -2,9 +2,10 @@ import { CalendarRange } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import {
   getMonthSummary,
-  monthStartUTC,
-  monthEndUTC,
+  monthStartForTZ,
+  monthEndForTZ,
 } from "@/features/insights/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import { WeekHeatmap } from "@/features/insights/components/week-heatmap";
 import { formatHours } from "@/lib/format/hours";
 
@@ -12,18 +13,20 @@ export const metadata = { title: "This Month · Quest Tracker" };
 
 export default async function MonthPage() {
   const user = await requireUser();
+  const tz = await getUserTimezone(user.id);
 
   const now = new Date();
-  const mStart = monthStartUTC(now);
-  const mEnd = monthEndUTC(now);
+  const mStart = monthStartForTZ(tz, now);
+  const mEnd = monthEndForTZ(tz, now);
 
-  // Last month bounds
-  const lastMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0, 23, 59, 59, 999));
-  const lastMonthStart = new Date(Date.UTC(lastMonthEnd.getUTCFullYear(), lastMonthEnd.getUTCMonth(), 1, 0, 0, 0, 0));
+  // Last month: 1ms before mStart = last moment of previous month
+  const prevMonthDate = new Date(mStart.getTime() - 1);
+  const lastMonthStart = monthStartForTZ(tz, prevMonthDate);
+  const lastMonthEnd = monthEndForTZ(tz, prevMonthDate);
 
   const [current, prev] = await Promise.all([
-    getMonthSummary(user.id, mStart, mEnd),
-    getMonthSummary(user.id, lastMonthStart, lastMonthEnd),
+    getMonthSummary(user.id, mStart, mEnd, tz),
+    getMonthSummary(user.id, lastMonthStart, lastMonthEnd, tz),
   ]);
 
   // Build heatmap: average hours per weekday (Mon=0..Sun=6) for this month
@@ -44,8 +47,8 @@ export default async function MonthPage() {
   const totalLastMonth = prev.questTotals.reduce((acc, q) => acc + q.hoursLogged, 0);
   const deltaHours = totalThisMonth - totalLastMonth;
 
-  const monthLabel = now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-  const prevMonthLabel = lastMonthEnd.toLocaleDateString(undefined, { month: "long" });
+  const monthLabel = now.toLocaleDateString("en-US", { timeZone: tz, month: "long", year: "numeric" });
+  const prevMonthLabel = prevMonthDate.toLocaleDateString("en-US", { timeZone: tz, month: "long" });
 
   // Max hours for bar scaling
   const maxQuestHours = Math.max(...current.questTotals.map((q) => q.hoursLogged), 1);

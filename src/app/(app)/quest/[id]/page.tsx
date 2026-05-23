@@ -13,6 +13,7 @@ import { getQuestActivity, listSessionsForQuest } from "@/features/sessions/quer
 import { SessionLogForm } from "@/features/sessions/components/session-log-form";
 import { SessionList } from "@/features/sessions/components/session-list";
 import { getQuestCurrentStreak } from "@/features/streaks/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import { formatLastWorked } from "@/lib/format/date";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +32,10 @@ type Params = Promise<{ id: string }>;
 export default async function QuestDetailPage({ params }: { params: Params }) {
   const { id } = await params;
   const user = await requireUser();
-  const quest = await getQuestById(user.id, id);
+  const [quest, tz] = await Promise.all([
+    getQuestById(user.id, id),
+    getUserTimezone(user.id),
+  ]);
   if (!quest) notFound();
 
   const isLessonQuest = quest.measure === "lessons";
@@ -41,7 +45,7 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
     listSessionsForQuest(user.id, quest.id, 25),
     isLessonQuest ? listLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
     isLessonQuest ? listOpenLessonsForQuest(user.id, quest.id) : Promise.resolve([]),
-    getQuestCurrentStreak(user.id, quest.id),
+    getQuestCurrentStreak(user.id, quest.id, tz),
   ]);
 
   const lastSessionAt = sessions[0]?.loggedAt ?? null;

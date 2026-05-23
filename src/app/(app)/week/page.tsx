@@ -5,9 +5,10 @@ import { listQuestsForQuarter } from "@/features/quests/queries";
 import {
   getWeeklySummary,
   getSessionsByDayForRange,
-  weekStartUTC,
-  weekEndUTC,
+  weekStartForTZ,
+  weekEndForTZ,
 } from "@/features/insights/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import type { BarChartDay } from "@/features/insights/components/weekly-bar-chart";
 import { WeekHeatmap } from "@/features/insights/components/week-heatmap";
 import { WeeklyBarChart } from "@/features/insights/components/weekly-bar-chart";
@@ -21,15 +22,18 @@ const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 export default async function WeekPage() {
   const user = await requireUser();
-  const quarter = await getOrCreateCurrentQuarter(user.id);
+  const [quarter, tz] = await Promise.all([
+    getOrCreateCurrentQuarter(user.id),
+    getUserTimezone(user.id),
+  ]);
 
   const now = new Date();
-  const wStart = weekStartUTC(now);
-  const wEnd = weekEndUTC(now);
+  const wStart = weekStartForTZ(tz, now);
+  const wEnd = weekEndForTZ(tz, now);
 
   const [summary, dayRows, quests] = await Promise.all([
     getWeeklySummary(user.id, wStart, wEnd),
-    getSessionsByDayForRange(user.id, wStart, wEnd),
+    getSessionsByDayForRange(user.id, wStart, wEnd, tz),
     listQuestsForQuarter(user.id, quarter.id),
   ]);
 
@@ -71,8 +75,10 @@ export default async function WeekPage() {
   const activeDays = heatmapHours.filter((h) => h > 0).length;
   const maxSession = dayRows.length > 0 ? Math.max(...dayRows.map((r) => r.hours)) : 0;
 
-  const weekLabel = wStart.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
-    " – " + wEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const weekLabel =
+    wStart.toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" }) +
+    " – " +
+    wEnd.toLocaleDateString("en-US", { timeZone: tz, month: "short", day: "numeric" });
 
   return (
     <div className="mx-auto max-w-4xl">

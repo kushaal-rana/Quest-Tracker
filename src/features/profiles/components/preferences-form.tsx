@@ -83,9 +83,7 @@ export function PreferencesForm({
   useEffect(() => {
     const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     setDetected(browserTz);
-    if (!savedTimezone) {
-      setTimezone(browserTz);
-    }
+    setTimezone(savedTimezone ?? browserTz);
   }, [savedTimezone]);
 
   // Show toast on save

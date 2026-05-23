@@ -10,10 +10,11 @@ import { ScorecardTile } from "@/features/insights/components/scorecard-tile";
 import { QuarterRing } from "@/features/insights/components/quarter-ring";
 import {
   getWeeklySummary,
-  weekStartUTC,
-  weekEndUTC,
+  weekStartForTZ,
+  weekEndForTZ,
 } from "@/features/insights/queries";
 import { calcCurrentStreak } from "@/features/streaks/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import { elapsedFraction } from "@/lib/format/date";
 import { formatHours } from "@/lib/format/hours";
 import { QuarterEndBanner } from "./_components/quarter-end-banner";
@@ -25,17 +26,20 @@ const NEW_QUEST_BUTTON_CLASS =
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const quarter = await getOrCreateCurrentQuarter(user.id);
+  const [quarter, tz] = await Promise.all([
+    getOrCreateCurrentQuarter(user.id),
+    getUserTimezone(user.id),
+  ]);
 
   const now = new Date();
-  const wStart = weekStartUTC(now);
-  const wEnd = weekEndUTC(now);
+  const wStart = weekStartForTZ(tz, now);
+  const wEnd = weekEndForTZ(tz, now);
 
   const [quests, progress, weeklySummary, streak, archivedQuests] = await Promise.all([
     listQuestsForQuarter(user.id, quarter.id),
     Promise.resolve(calcQuarterProgress(quarter)),
     getWeeklySummary(user.id, wStart, wEnd),
-    calcCurrentStreak(user.id),
+    calcCurrentStreak(user.id, tz),
     listArchivedQuestsForQuarter(user.id, quarter.id),
   ]);
 

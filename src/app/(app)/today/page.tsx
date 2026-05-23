@@ -1,6 +1,7 @@
 import { Sun } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getTodaySessionsGrouped } from "@/features/insights/queries";
+import { getUserTimezone } from "@/features/profiles/queries";
 import { formatHours } from "@/lib/format/hours";
 import { formatRelativeTime } from "@/lib/format/date";
 
@@ -8,12 +9,13 @@ export const metadata = { title: "Today · Quest Tracker" };
 
 export default async function TodayPage() {
   const user = await requireUser();
-  const groups = await getTodaySessionsGrouped(user.id);
+  const tz = await getUserTimezone(user.id);
+  const groups = await getTodaySessionsGrouped(user.id, tz);
 
   const totalHours = groups.reduce((acc, g) => acc + g.totalHours, 0);
 
-  const today = new Date();
-  const dateLabel = today.toLocaleDateString(undefined, {
+  const dateLabel = new Date().toLocaleDateString("en-US", {
+    timeZone: tz,
     weekday: "long",
     month: "long",
     day: "numeric",
