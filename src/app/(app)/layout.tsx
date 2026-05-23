@@ -4,6 +4,7 @@ import { listActiveQuestsForPicker } from "@/features/quests/queries";
 import { CommandPalette } from "@/features/command-palette/components/command-palette";
 import { SidebarNav } from "./_components/sidebar-nav";
 import { TopbarBreadcrumb } from "./_components/topbar-breadcrumb";
+import { ModeToggle } from "./_components/mode-toggle";
 import { SignOutButton } from "./sign-out-button";
 
 /**
@@ -54,6 +55,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="flex items-center gap-2.5">
+              <ModeToggle />
               <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[15px] font-semibold text-white shadow-sm">
                 {initial}
               </div>
