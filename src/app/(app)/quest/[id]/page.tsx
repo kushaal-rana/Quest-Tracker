@@ -7,6 +7,7 @@ import { getQuestById } from "@/features/quests/queries";
 import { CategoryTag } from "@/features/quests/components/category-tag";
 import { QuestSparkline } from "@/features/quests/components/quest-sparkline";
 import { ArchiveQuestButton } from "@/features/quests/components/archive-quest-button";
+import { QuestTitleLink } from "@/features/quests/components/quest-title-link";
 import { listLessonsForQuest, listOpenLessonsForQuest } from "@/features/lessons/queries";
 import { LessonsList } from "@/features/lessons/components/lessons-list";
 import { getQuestActivity, listSessionsForQuest } from "@/features/sessions/queries";
@@ -68,19 +69,14 @@ export default async function QuestDetailPage({ params }: { params: Params }) {
         Back to dashboard
       </Link>
 
-      {/* Title + actions */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <span
-              className="h-3.5 w-3.5 shrink-0 rounded-full"
-              style={{ backgroundColor: quest.color }}
-              aria-hidden="true"
+          <QuestTitleLink
+              questId={quest.id}
+              questName={quest.name}
+              questColor={quest.color}
+              linkUrl={quest.linkUrl}
             />
-            <h1 className="truncate text-4xl font-semibold tracking-tight md:text-[40px]">
-              {quest.name}
-            </h1>
-          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <CategoryTag category={quest.category} size="md" />
             {quest.type === "main" && (

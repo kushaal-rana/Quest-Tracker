@@ -70,6 +70,7 @@ export const quests = pgTable(
     position: integer("position").notNull().default(0),
     archived: boolean("archived").notNull().default(false),
     deadline: date("deadline"),
+    linkUrl: text("link_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({

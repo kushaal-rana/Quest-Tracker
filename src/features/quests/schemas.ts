@@ -61,6 +61,13 @@ export const archiveQuestSchema = z.object({
 
 export type ArchiveQuestInput = z.infer<typeof archiveQuestSchema>;
 
+export const setQuestLinkSchema = z.object({
+  id: z.string().uuid(),
+  linkUrl: z.string().url("Must be a valid URL").or(z.literal("")).transform((v) => v || null),
+});
+
+export type SetQuestLinkInput = z.infer<typeof setQuestLinkSchema>;
+
 // FormState + INITIAL_FORM_STATE moved to @/lib/forms (shared across features).
 // Re-exported here for backwards-compatible imports from inside the quests feature.
 export { type FormState, INITIAL_FORM_STATE } from "@/lib/forms";

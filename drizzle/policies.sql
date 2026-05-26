@@ -95,3 +95,20 @@ create policy "weekly_focus_update_own" on weekly_focus
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
 create policy "weekly_focus_delete_own" on weekly_focus
   for delete using (auth.uid() = user_id);
+
+-- profiles (Phase 5 — added 2026-05-17)
+alter table profiles enable row level security;
+
+drop policy if exists "profiles_select_own" on profiles;
+drop policy if exists "profiles_insert_own" on profiles;
+drop policy if exists "profiles_update_own" on profiles;
+drop policy if exists "profiles_delete_own" on profiles;
+
+create policy "profiles_select_own" on profiles
+  for select using (auth.uid() = user_id);
+create policy "profiles_insert_own" on profiles
+  for insert with check (auth.uid() = user_id);
+create policy "profiles_update_own" on profiles
+  for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+create policy "profiles_delete_own" on profiles
+  for delete using (auth.uid() = user_id);

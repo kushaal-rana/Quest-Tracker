@@ -12,6 +12,7 @@ import { nextPositionForQuarter } from "./queries";
 import {
   archiveQuestSchema,
   createQuestSchema,
+  setQuestLinkSchema,
   updateQuestSchema,
   type FormState,
 } from "./schemas";
@@ -182,4 +183,26 @@ export async function archiveQuestAction(
 
   revalidatePath(ROUTES.dashboard);
   redirect(ROUTES.dashboard);
+}
+
+// ─── Set / clear link URL ────────────────────────────────────────────────────
+
+export async function setQuestLinkAction(
+  questId: string,
+  linkUrl: string,
+): Promise<FormState> {
+  const user = await requireUser();
+
+  const parsed = setQuestLinkSchema.safeParse({ id: questId, linkUrl });
+  if (!parsed.success) {
+    return { ok: false, message: "Invalid URL." };
+  }
+
+  await db
+    .update(quests)
+    .set({ linkUrl: parsed.data.linkUrl })
+    .where(and(eq(quests.id, parsed.data.id), eq(quests.userId, user.id)));
+
+  revalidatePath(ROUTES.questDetail(questId));
+  return { ok: true, message: parsed.data.linkUrl ? "Link saved." : "Link removed." };
 }
